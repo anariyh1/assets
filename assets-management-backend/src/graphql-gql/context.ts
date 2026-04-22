@@ -1,0 +1,18 @@
+import type { DrizzleD1Database } from "drizzle-orm/d1";
+
+import type * as schema from "@/schema";
+
+export type GraphQLEnv = {
+  // Runtime дээр Cloudflare bindings орж ирнэ; type dependency нэмэхгүйн тулд minimal хэлбэрээр тодорхойллоо.
+  DB: unknown;
+  MY_CACHE: unknown;
+  /** Demo/temporary: disable Bearer auth checks */
+  DISABLE_AUTH?: string;
+};
+
+export type GraphQLContext = {
+  env: Partial<GraphQLEnv>;
+  db: DrizzleD1Database<typeof schema>;
+  /** Reserved for future auth integrations; null in the no-auth local flow. */
+  userId: string | null;
+};

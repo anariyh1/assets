@@ -1,0 +1,32 @@
+mutation CreateMaintenanceTicket(
+  $assetId: ID!
+  $reporterId: ID!
+  $description: String!
+  $severity: String!
+  $vendorId: ID
+  $repairCost: Int
+) {
+  createMaintenanceTicket(
+    assetId: $assetId
+    reporterId: $reporterId
+    description: $description
+    severity: $severity
+    vendorId: $vendorId
+    repairCost: $repairCost
+  ) {
+    id
+    assetId
+    description
+    status
+    severity
+  }
+}
+
+mutation UpdateMaintenanceTicket($id: ID!, $status: String!, $repairCost: Int, $resolvedAt: Float) {
+  updateMaintenanceTicket(id: $id, status: $status, repairCost: $repairCost, resolvedAt: $resolvedAt) {
+    id
+    status
+    resolvedAt
+    updatedAt
+  }
+}

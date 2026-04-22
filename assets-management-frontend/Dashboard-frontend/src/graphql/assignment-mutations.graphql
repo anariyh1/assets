@@ -1,0 +1,6 @@
+mutation UpdateAssignmentStatus($assignmentId: ID!, $status: String!) {
+  updateAssignmentStatus(assignmentId: $assignmentId, status: $status) {
+    id
+    status
+  }
+}

@@ -1,0 +1,42 @@
+query GetDataWipeTasks($status: String) {
+  dataWipeTasks(status: $status) {
+    id
+    assetId
+    asset {
+      id
+      assetTag
+      category
+    }
+    latestAssignment {
+      id
+      employee {
+        id
+        firstName
+        lastName
+        department
+        branch
+      }
+    }
+    latestReturnRequest {
+      id
+      employee {
+        id
+        firstName
+        lastName
+        department
+        branch
+      }
+    }
+    status
+    createdAt
+    updatedAt
+  }
+}
+
+mutation UpdateDataWipeTask($id: ID!, $status: String!) {
+  updateDataWipeTask(id: $id, status: $status) {
+    id
+    status
+    updatedAt
+  }
+}
