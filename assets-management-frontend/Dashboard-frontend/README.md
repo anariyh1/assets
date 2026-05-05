@@ -1,54 +1,138 @@
-# OpenNext Starter
+# Dashboard Frontend
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Энэ хавтас нь төслийн dashboard frontend хэсэг юм.
 
-## Getting Started
+Үндсэн боломжууд:
 
-Read the documentation at https://opennext.js.org/cloudflare.
+- Asset dashboard UI
+- Assets, reports, QR, census, transfer зэрэг дэлгэцүүд
+- Backend GraphQL API-тэй холбогдоно
+- Gemini chatbot widget агуулна
 
-## Develop
+## Dependency суулгах
 
-Run the Next.js development server:
+```powershell
+cd C:\Projects\assets\assets-management-frontend\Dashboard-frontend
+npm install
+```
 
-```bash
+## Environment тохируулах
+
+`assets-management-frontend/Dashboard-frontend\.env` файлд жишээ нь:
+
+```env
+NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3000/api/graphql
+GEMINI_API_KEY=your_gemini_key
+```
+
+Анхаарах зүйл:
+
+- `NEXT_PUBLIC_GRAPHQL_URL` нь backend GraphQL route руу заана
+- `GEMINI_API_KEY`-г server route ашиглах тул browser руу шууд ил гаргахгүй
+- ижил env хувьсагчийг олон давтаж бичихгүй
+
+## Frontend асаах
+
+```powershell
 npm run dev
-# or similar package manager command
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Хэрэв `3000` порт backend ашиглаж байвал frontend дараагийн сул порт руу автоматаар орно.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Жишээ:
 
-## Preview
+- `http://localhost:3001`
+- `http://localhost:3002`
 
-Preview the application locally on the Cloudflare runtime:
+## Backend-тэй холбох
 
-```bash
-npm run preview
-# or similar package manager command
+Backend эхэлж ассан байх ёстой:
+
+```powershell
+cd C:\Projects\assets\assets-management-backend
+npm run dev
 ```
 
-## Deploy
+Дараа нь frontend-ээ асаана:
 
-Deploy the application to Cloudflare:
+```powershell
+cd C:\Projects\assets\assets-management-frontend\Dashboard-frontend
+npm run dev
+```
 
-```bash
+## Gemini chatbot
+
+Chatbot нь dashboard дээр баруун доод буланд харагдана.
+
+Ажиллах урсгал:
+
+1. frontend нь `/api/gemini` route руу хүсэлт явуулна
+2. route нь Gemini API руу server-side хүсэлт илгээнэ
+3. хариулт нь Монгол кириллээр гарахаар тохируулсан
+
+## Ашигтай командууд
+
+```powershell
+npm run dev
+npm run build
+npm run start
+npm run lint
+npm run codegen
+```
+
+## Түгээмэл асуудал
+
+### `Couldn't find any pages or app directory`
+
+`src/app` хавтас алга болсон эсвэл буруу байршилд орсон үед гарна.
+
+Шалгах зам:
+
+```text
+assets-management-frontend/Dashboard-frontend/src/app
+```
+
+### `Another next dev server is already running`
+
+Өмнөх `next dev` аль хэдийн ассан байна.
+
+Шийдэл:
+
+```powershell
+taskkill /PID <PID> /F
+```
+
+эсвэл ажиллаж байгаа localhost URL-ээ ашиглана.
+
+### `API Key not found`
+
+- `GEMINI_API_KEY` хүчингүй
+- env файл буруу
+- route key-г зөв уншаагүй
+
+### Англи, Монгол үсэг холилдох
+
+Chatbot route дээр кириллээр хариулах system prompt өгсөн. Хэрэв хуучин хариу cache эсвэл хуучин dev instance ажиллаж байвал server-ээ restart хийнэ.
+
+## Build ба deploy
+
+```powershell
+npm run build
 npm run deploy
-# or similar package manager command
 ```
 
-This frontend is configured to deploy as its own Cloudflare Worker service:
+Preview:
 
-- Worker name: `dashboard-frontend`
-- Default Cloudflare URL: `https://dashboard-frontend.<your-subdomain>.workers.dev`
+```powershell
+npm run preview
+```
 
-If you want a branded custom domain, add it in Cloudflare after the first successful deploy and map it to the `dashboard-frontend` worker.
+## Хавтасны бүтэц
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```text
+Dashboard-frontend/
+├─ src/
+├─ public/
+├─ package.json
+└─ .env
+```

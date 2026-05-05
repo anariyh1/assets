@@ -56,6 +56,13 @@ function formatStatusLabel(status: string) {
   );
 }
 
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export function AssetFilter() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -66,6 +73,11 @@ export function AssetFilter() {
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [qrAssets, setQrAssets] = useState<Asset[]>([]);
   const [assignEmployeeId, setAssignEmployeeId] = useState<string>("");
+  const [assignCondition, setAssignCondition] = useState("GOOD");
+  const [assignAccessories, setAssignAccessories] = useState("");
+  const [assignValue, setAssignValue] = useState("");
+  const [assignMonths, setAssignMonths] = useState("");
+  const [assignInterest, setAssignInterest] = useState("");
   const [assigning, setAssigning] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const selectAllRef = useRef<HTMLInputElement>(null);
@@ -75,8 +87,14 @@ export function AssetFilter() {
     "assign" | "transfer" | "return" | null
   >(null);
 
-  const { assets, loading, refetch, employeeNameById, employeeStatusById } =
-    useAssetsData("");
+  const {
+    assets,
+    loading,
+    refetch,
+    removeLocalAssetIds,
+    employeeNameById,
+    employeeStatusById,
+  } = useAssetsData("");
   const [assignAssetMutation] = useMutation(AssignAssetDocument);
   const [deleteAssetMutation, { loading: deletingAssets }] =
     useMutation(DeleteAssetDocument);
@@ -250,7 +268,11 @@ export function AssetFilter() {
           variables: {
             assetId: asset.id,
             employeeId: assignEmployeeId,
-            conditionAtAssign: "GOOD",
+            conditionAtAssign: assignCondition,
+            accessoriesJson: assignAccessories.trim() || undefined,
+            assignedValue: parseOptionalNumber(assignValue),
+            paymentPlanMonths: parseOptionalNumber(assignMonths),
+            interestRate: parseOptionalNumber(assignInterest),
           },
         });
       }
@@ -259,9 +281,15 @@ export function AssetFilter() {
       });
       setShowAssignDialog(false);
       setAssignEmployeeId("");
+      setAssignCondition("GOOD");
+      setAssignAccessories("");
+      setAssignValue("");
+      setAssignMonths("");
+      setAssignInterest("");
       setSelectedIds(new Set());
       refetch();
-    } catch {
+    } catch (error) {
+      console.error("Failed to assign selected assets:", error);
       toast.error(
         employeeStatus === "offboarding"
           ? "Гарах процесс хийж буй ажилтанд хөрөнгө оноох боломжгүй"
@@ -288,20 +316,29 @@ export function AssetFilter() {
     const toastId = toast.loading("Сонгосон хөрөнгийг устгаж байна...");
     const failed: string[] = [];
     const deletedAt = Date.now();
+    const removedLocalIds = removeLocalAssetIds(
+      targets.map((asset) => asset.id),
+    );
+    let deletedCount = removedLocalIds.size;
 
     for (const asset of targets) {
+      if (removedLocalIds.has(asset.id)) continue;
+
       try {
         const result = await deleteAssetMutation({
           variables: { id: asset.id },
         });
 
-        if (!result.data?.deleteAsset) {
+        if (result.data?.deleteAsset) {
+          deletedCount += 1;
+        } else {
           await updateAssetMutation({
             variables: {
               id: asset.id,
               input: { deletedAt },
             },
           });
+          deletedCount += 1;
         }
       } catch (error) {
         console.error("Failed to delete asset:", error);
@@ -317,7 +354,7 @@ export function AssetFilter() {
     }
 
     setSelectedIds(new Set());
-    toast.success(`${targets.length} хөрөнгө устлаа.`, { id: toastId });
+    toast.success(`${deletedCount} хөрөнгө устлаа.`, { id: toastId });
   };
 
   const tabActive =
@@ -433,11 +470,14 @@ export function AssetFilter() {
               variant="ghost"
               className={cn(tabBase, activeAction === "assign" && tabActive)}
               onClick={() => {
-                setActiveAction(activeAction === "assign" ? null : "assign");
-                setStatusFilter(
-                  activeAction === "assign" ? "all" : "ASSIGNABLE",
-                );
-                setSelectedIds(new Set());
+                if (activeAction === "assign") {
+                  setShowAssignDialog(true);
+                  return;
+                }
+
+                setActiveAction("assign");
+                setStatusFilter("ASSIGNABLE");
+                setShowAssignDialog(true);
               }}
             >
               <UserRoundPlus className="h-4 w-4" />
@@ -448,13 +488,14 @@ export function AssetFilter() {
               variant="ghost"
               className={cn(tabBase, activeAction === "transfer" && tabActive)}
               onClick={() => {
-                setActiveAction(
-                  activeAction === "transfer" ? null : "transfer",
-                );
-                setStatusFilter(
-                  activeAction === "transfer" ? "all" : "TRANSFERABLE",
-                );
-                setSelectedIds(new Set());
+                if (activeAction === "transfer") {
+                  setShowTransferDialog(true);
+                  return;
+                }
+
+                setActiveAction("transfer");
+                setStatusFilter("TRANSFERABLE");
+                setShowTransferDialog(true);
               }}
             >
               <ArrowRightLeft className="h-4 w-4" />
@@ -516,7 +557,17 @@ export function AssetFilter() {
         onOpenChange={setShowTransferDialog}
         selectedAssets={assets
           .filter((a) => selectedIds.has(a.id))
-          .map((a) => ({ id: a.id, assetTag: a.assetId }))}
+          .map((a) => ({
+            id: a.id,
+            assetTag: a.assetId,
+            serialNumber: a.serialNumber,
+            category: a.category,
+            location: a.location,
+            assignedEmployeeId: a.assignedEmployeeId,
+            assignedEmployeeName: a.assignedEmployeeName,
+            currentBookValue: a.currentBookValue,
+            purchaseCost: a.purchaseCost,
+          }))}
         onRemoveAsset={(id) => toggleSelect(id)}
         onSuccess={() => {
           refetch();
@@ -532,6 +583,16 @@ export function AssetFilter() {
         employeeNameById={employeeNameById}
         assignEmployeeId={assignEmployeeId}
         onAssignEmployeeIdChange={setAssignEmployeeId}
+        conditionAtAssign={assignCondition}
+        onConditionAtAssignChange={setAssignCondition}
+        accessories={assignAccessories}
+        onAccessoriesChange={setAssignAccessories}
+        assignedValue={assignValue}
+        onAssignedValueChange={setAssignValue}
+        paymentPlanMonths={assignMonths}
+        onPaymentPlanMonthsChange={setAssignMonths}
+        interestRate={assignInterest}
+        onInterestRateChange={setAssignInterest}
         submitting={assigning}
         onSubmit={handleAssignSubmit}
       />

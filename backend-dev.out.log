@@ -1,0 +1,37 @@
+
+> my-next-app@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.5 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.56.1:3000
+- Environments: .env.local
+
+✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Projects\\assets\\assets-management-backend',
+  testMode: true
+}
+✓ Ready in 1068ms
+ GET / 200 in 969ms (compile: 664ms, render: 305ms)
+ POST /api/graphql 200 in 5.0s (compile: 736ms, render: 4.3s)
+ POST /api/graphql 200 in 5.0s (compile: 2.3s, render: 2.7s)
+ POST /api/graphql 200 in 5.1s (compile: 2.3s, render: 2.8s)
+ POST /api/graphql 200 in 5.1s (compile: 2.3s, render: 2.8s)
+ GET / 200 in 42ms (compile: 6ms, render: 36ms)
+ POST /api/graphql 200 in 224ms (compile: 12ms, render: 212ms)
+ POST /api/graphql 200 in 250ms (compile: 11ms, render: 240ms)
+ POST /api/graphql 200 in 257ms (compile: 67ms, render: 190ms)
+ POST /api/graphql 200 in 267ms (compile: 125ms, render: 142ms)
+ POST /api/graphql 200 in 276ms (compile: 182ms, render: 94ms)
+ POST /api/graphql 200 in 459ms (compile: 77ms, render: 381ms)
+ POST /api/graphql 200 in 47ms (compile: 7ms, render: 40ms)
+ POST /api/graphql 200 in 40ms (compile: 4ms, render: 36ms)
+ POST /api/graphql 200 in 90ms (compile: 5ms, render: 84ms)
+ POST /api/graphql 200 in 134ms (compile: 7ms, render: 127ms)
+ POST /api/graphql 200 in 142ms (compile: 47ms, render: 95ms)
+ POST /api/graphql 200 in 149ms (compile: 83ms, render: 67ms)
+ POST /api/graphql 200 in 157ms (compile: 53ms, render: 104ms)
+ POST /api/graphql 200 in 166ms (compile: 95ms, render: 71ms)
+ POST /api/graphql 200 in 178ms (compile: 13ms, render: 165ms)
+[?25h

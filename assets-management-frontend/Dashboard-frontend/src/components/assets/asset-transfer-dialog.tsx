@@ -6,6 +6,7 @@ import {
   UpdateAssetDocument,
   EmployeesDocument,
   AssignAssetDocument,
+  TransferAssetDocument,
 } from "@/gql/graphql";
 import { User, MapPin, X, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +18,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { LocationPicker } from "./location-picker";
 import {
@@ -43,7 +52,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export type SelectedAsset = { id: string; assetTag: string };
+export type SelectedAsset = {
+  id: string;
+  assetTag: string;
+  serialNumber?: string;
+  category?: string;
+  location?: string;
+  assignedEmployeeId?: string;
+  assignedEmployeeName?: string;
+  currentBookValue?: number;
+  purchaseCost?: number;
+};
 
 type TabMode = "owner" | "location";
 
@@ -65,6 +84,8 @@ export function AssetTransferDialog({
   const [tab, setTab] = useState<TabMode>("owner");
   const [locationFullPath, setLocationFullPath] = useState<string>("");
   const [employeeId, setEmployeeId] = useState<string>("");
+  const [conditionAtTransfer, setConditionAtTransfer] = useState("GOOD");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [ownerPickerOpen, setOwnerPickerOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -72,6 +93,7 @@ export function AssetTransferDialog({
   const { data: employeesData } = useQuery(EmployeesDocument);
   const [updateAssetMutation] = useMutation(UpdateAssetDocument);
   const [assignAssetMutation] = useMutation(AssignAssetDocument);
+  const [transferAssetMutation] = useMutation(TransferAssetDocument);
 
   const employees = useMemo(() => {
     const list = (employeesData?.employees ?? []) as Array<{
@@ -94,6 +116,8 @@ export function AssetTransferDialog({
     if (!open) return;
     setTab("owner");
     setOwnerPickerOpen(false);
+    setConditionAtTransfer("GOOD");
+    setReason("");
   }, [open]);
 
   const handleTransferToLocation = async () => {
@@ -134,17 +158,32 @@ export function AssetTransferDialog({
     const toastId = toast.loading("Эзэмшигч рүү шилжүүлж байна...");
     try {
       for (const asset of selectedAssets) {
-        await assignAssetMutation({
-          variables: {
-            assetId: asset.id,
-            employeeId,
-          },
-        });
+        if (asset.assignedEmployeeId) {
+          await transferAssetMutation({
+            variables: {
+              assetId: asset.id,
+              fromEmployeeId: asset.assignedEmployeeId,
+              toEmployeeId: employeeId,
+              reason: reason.trim() || undefined,
+              conditionNoted: conditionAtTransfer,
+            },
+          });
+        } else {
+          await assignAssetMutation({
+            variables: {
+              assetId: asset.id,
+              employeeId,
+              conditionAtAssign: conditionAtTransfer,
+            },
+          });
+        }
       }
       toast.success(`${selectedAssets.length} хөрөнгө амжилттай шилжүүллээ.`, {
         id: toastId,
       });
       setEmployeeId("");
+      setConditionAtTransfer("GOOD");
+      setReason("");
       onSuccess?.();
       onOpenChange(false);
     } catch (e) {
@@ -287,6 +326,72 @@ export function AssetTransferDialog({
                   </Command>
                 </PopoverContent>
               </Popover>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Хүлээлгэн өгөх үеийн төлөв
+                </label>
+                <Select
+                  value={conditionAtTransfer}
+                  onValueChange={setConditionAtTransfer}
+                >
+                  <SelectTrigger className="h-11 w-full rounded-md border-gray-200">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GOOD">Сайн</SelectItem>
+                    <SelectItem value="FAIR">Дунд</SelectItem>
+                    <SelectItem value="DAMAGED">Эвдрэлтэй</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Шилжүүлэх шалтгаан
+                </label>
+                <Input
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  placeholder="Жишээ: ажилтан солигдсон..."
+                  className="h-11 rounded-md border-gray-200"
+                />
+              </div>
+            </div>
+          )}
+          {selectedAssets.length > 0 && (
+            <div className="rounded-lg border bg-muted/40 p-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Шилжүүлгийн мэдээлэл
+              </p>
+              {tab === "owner" ? (
+                <div className="rounded-md bg-white/70 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Шинэ эзэмшигч: </span>
+                  <span className="font-medium">{selectedEmployeeName || "—"}</span>
+                </div>
+              ) : (
+                <div className="rounded-md bg-white/70 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Шинэ байршил: </span>
+                  <span className="font-medium">{locationFullPath || "—"}</span>
+                </div>
+              )}
+              <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
+                {selectedAssets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md bg-white px-3 py-3 text-sm"
+                  >
+                    <span className="text-muted-foreground">Хөрөнгө</span>
+                    <span className="font-medium">{asset.assetTag}</span>
+                    <span className="text-muted-foreground">Сериал</span>
+                    <span className="font-medium">{asset.serialNumber || "—"}</span>
+                    <span className="text-muted-foreground">Одоогийн эзэмшигч</span>
+                    <span className="font-medium">
+                      {asset.assignedEmployeeName || "Эзэмшигчгүй"}
+                    </span>
+                    <span className="text-muted-foreground">Байршил</span>
+                    <span className="font-medium">{asset.location || "—"}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

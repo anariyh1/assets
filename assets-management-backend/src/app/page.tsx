@@ -1,10 +1,12 @@
 "use client";
+
 import { useState } from "react";
 import * as XLSX from "xlsx";
 
+type SpreadsheetRow = Record<string, unknown>;
+
 export default function ExcelToOdoo() {
-  const [file, setFile] = useState<File | null>(null);
-  const [allData, setAllData] = useState<any[]>([]);
+  const [allData, setAllData] = useState<SpreadsheetRow[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -13,10 +15,10 @@ export default function ExcelToOdoo() {
   const totalPages = Math.ceil(allData.length / ITEMS_PER_PAGE);
   const currentItems = allData.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
-  const readExcel = (file: File): Promise<any[]> => {
+  const readExcel = (file: File): Promise<SpreadsheetRow[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (evt) => {
@@ -24,7 +26,9 @@ export default function ExcelToOdoo() {
           const data = new Uint8Array(evt.target?.result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: "array" });
           const sheetName = workbook.SheetNames[0];
-          const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+          const jsonData = XLSX.utils.sheet_to_json<SpreadsheetRow>(
+            workbook.Sheets[sheetName]
+          );
           resolve(jsonData);
         } catch (err) {
           reject(err);
@@ -36,60 +40,69 @@ export default function ExcelToOdoo() {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
+
     const selectedFile = e.target.files[0];
-    setFile(selectedFile);
+
     try {
       const data = await readExcel(selectedFile);
       setAllData(data);
       setCurrentPage(1);
       setMessage(`Нийт ${data.length} мөр уншсан.`);
     } catch {
-      setMessage("❌ Excel уншихад алдаа гарлаа.");
+      setMessage("Excel уншихад алдаа гарлаа.");
     }
   };
 
   const handleUpload = async () => {
     if (allData.length === 0) return;
+
     setLoading(true);
-    const BATCH_SIZE = 50;
+    const batchSize = 50;
     let successCount = 0;
 
     try {
-      for (let i = 0; i < allData.length; i += BATCH_SIZE) {
-        const batch = allData.slice(i, i + BATCH_SIZE);
+      for (let i = 0; i < allData.length; i += batchSize) {
+        const batch = allData.slice(i, i + batchSize);
         const res = await fetch("/api/import-assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(batch),
         });
-        if (!res.ok) throw new Error("Серверийн алдаа");
+
+        if (!res.ok) {
+          throw new Error("Серверийн алдаа");
+        }
+
         successCount += batch.length;
-        setMessage(`⏳ Илгээж байна: ${successCount} / ${allData.length}`);
+        setMessage(`Илгээж байна: ${successCount} / ${allData.length}`);
       }
-      setMessage(`✅ Амжилттай: ${successCount} мөр хадгалагдлаа!`);
+
+      setMessage(`Амжилттай: ${successCount} мөр хадгалагдлаа.`);
       setAllData([]);
-    } catch (err: any) {
-      setMessage(`❌ Алдаа: ${err.message}`);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Unknown upload error";
+      setMessage(`Алдаа: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-white shadow-xl rounded-2xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 rounded-2xl bg-white p-6 shadow-xl">
       <h2 className="text-2xl font-bold text-purple-800">
-        📊 Excel to Odoo Import
+        Excel to Odoo Import
       </h2>
 
       <input
         type="file"
         accept=".xlsx"
         onChange={handleFileChange}
-        className="border p-2 w-full"
+        className="w-full border p-2"
       />
 
       {message && (
-        <div className="p-3 bg-blue-50 text-blue-800 rounded">{message}</div>
+        <div className="rounded bg-blue-50 p-3 text-blue-800">{message}</div>
       )}
 
       {allData.length > 0 && (
@@ -108,7 +121,7 @@ export default function ExcelToOdoo() {
               <tbody>
                 {currentItems.map((row, i) => (
                   <tr key={i} className="border-b">
-                    {Object.values(row).map((val: any, j) => (
+                    {Object.values(row).map((val, j) => (
                       <td key={j} className="p-2">
                         {String(val)}
                       </td>
@@ -119,11 +132,11 @@ export default function ExcelToOdoo() {
             </table>
           </div>
 
-          <div className="flex gap-4 items-center">
+          <div className="flex items-center gap-4">
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => p - 1)}
-              className="px-4 py-2 bg-gray-200 rounded"
+              className="rounded bg-gray-200 px-4 py-2"
             >
               Өмнөх
             </button>
@@ -133,7 +146,7 @@ export default function ExcelToOdoo() {
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="px-4 py-2 bg-gray-200 rounded"
+              className="rounded bg-gray-200 px-4 py-2"
             >
               Дараах
             </button>
@@ -142,9 +155,9 @@ export default function ExcelToOdoo() {
           <button
             onClick={handleUpload}
             disabled={loading}
-            className="w-full py-3 bg-purple-600 text-white rounded"
+            className="w-full rounded bg-purple-600 py-3 text-white"
           >
-            {loading ? "Түр хүлээнэ үү..." : "Бүгдийг сервер рүү илгээх"}
+            {loading ? "Түр хүлээнэ үү..." : "Бүгдийг сервер рүү илгээнэ"}
           </button>
         </>
       )}

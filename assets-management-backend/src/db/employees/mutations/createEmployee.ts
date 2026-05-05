@@ -14,7 +14,7 @@ export async function createEmployee(input: EmployeeCreate): Promise<Employee> {
   await db.insert(employees).values({
     id,
     entraId: input.entraId ?? null,
-    role: "EMPLOYEE",
+    role: input.role ?? "EMPLOYEE",
     firstName: input.firstName,
     lastName: input.lastName,
     firstNameEng: input.firstNameEng,
@@ -23,7 +23,7 @@ export async function createEmployee(input: EmployeeCreate): Promise<Employee> {
     imageUrl: input.imageUrl ?? null,
     hireDate: input.hireDate,
     terminationDate: null,
-    status: "ACTIVE",
+    status: input.status ?? "ACTIVE",
     numberOfVacationDays: input.numberOfVacationDays ?? null,
     github: input.github ?? null,
     department: input.department,

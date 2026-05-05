@@ -1,12 +1,15 @@
 "use client";
 
 import {
-  UserPlus,
-  RotateCcw,
+  AlertTriangle,
   ArrowLeftRight,
+  BadgeCheck,
   ClipboardCheck,
   DollarSign,
-  BadgeCheck,
+  PackagePlus,
+  RotateCcw,
+  Trash2,
+  UserPlus,
 } from "lucide-react";
 import { useMemo } from "react";
 import { useQuery } from "@apollo/client";
@@ -14,12 +17,11 @@ import { useQuery } from "@apollo/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import {
   AssignmentsDocument,
-  type AssignmentFieldsFragment,
   EmployeesDocument,
   GetAuditLogsDocument,
+  type AssignmentFieldsFragment,
 } from "@/gql/graphql";
 
 type ActivityType =
@@ -28,74 +30,181 @@ type ActivityType =
   | "transferred"
   | "verified"
   | "asset_status_changed"
-  | "asset_price_changed";
+  | "asset_price_changed"
+  | "registered"
+  | "deleted"
+  | "warning";
 
-/* DATE FORMATTER */
+type RecentActivity = {
+  id: string;
+  title: string;
+  time: string;
+  ts: number;
+  icon: React.ComponentType<{ className?: string }>;
+  iconColor: string;
+};
+
+type AuditLogRow = {
+  id: string;
+  tableName: string;
+  recordId: string;
+  action: string;
+  actorId?: string | null;
+  oldValueJson?: string | null;
+  newValueJson?: string | null;
+  createdAt: number;
+};
+
 const formatDateTime = (timestamp: number) => {
   const date = new Date(timestamp);
-
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
-
   const hour = String(date.getHours()).padStart(2, "0");
   const minute = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}/${month}/${day} ${hour}:${minute}`;
 };
 
-/* ICON PICKER */
-const pickActivityIcon = (type: ActivityType) => {
-  switch (type) {
-    case "assigned":
-      return {
-        icon: UserPlus,
-        iconColor: "text-green-500",
-      };
-
-    case "returned":
-      return {
-        icon: RotateCcw,
-        iconColor: "text-orange-500",
-      };
-
-    case "transferred":
-      return {
-        icon: ArrowLeftRight,
-        iconColor: "text-blue-500",
-      };
-
-    case "verified":
-      return {
-        icon: ClipboardCheck,
-        iconColor: "text-blue-500",
-      };
-    case "asset_status_changed":
-      return {
-        icon: BadgeCheck,
-        iconColor: "text-indigo-500",
-      };
-    case "asset_price_changed":
-      return {
-        icon: DollarSign,
-        iconColor: "text-emerald-600",
-      };
-
-    default:
-      return {
-        icon: UserPlus,
-        iconColor: "text-gray-500",
-      };
+const safeJson = (value?: string | null) => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return null;
   }
 };
 
+const formatMoney = (value: number | null) =>
+  value == null ? "0₮" : `${value.toLocaleString("mn-MN")}₮`;
+
+const pickActivityIcon = (type: ActivityType) => {
+  switch (type) {
+    case "assigned":
+      return { icon: UserPlus, iconColor: "text-green-500" };
+    case "returned":
+      return { icon: RotateCcw, iconColor: "text-orange-500" };
+    case "transferred":
+      return { icon: ArrowLeftRight, iconColor: "text-blue-500" };
+    case "verified":
+      return { icon: ClipboardCheck, iconColor: "text-blue-500" };
+    case "asset_status_changed":
+      return { icon: BadgeCheck, iconColor: "text-indigo-500" };
+    case "asset_price_changed":
+      return { icon: DollarSign, iconColor: "text-emerald-600" };
+    case "registered":
+      return { icon: PackagePlus, iconColor: "text-cyan-600" };
+    case "deleted":
+      return { icon: Trash2, iconColor: "text-red-500" };
+    case "warning":
+      return { icon: AlertTriangle, iconColor: "text-amber-500" };
+    default:
+      return { icon: UserPlus, iconColor: "text-gray-500" };
+  }
+};
+
+function getString(value: unknown) {
+  return typeof value === "string" ? value : undefined;
+}
+
+function getNumber(value: unknown) {
+  return typeof value === "number" ? value : null;
+}
+
+function buildAuditActivity(
+  log: AuditLogRow,
+  employeeNameById: Map<string, string>,
+): RecentActivity {
+  const oldValue = safeJson(log.oldValueJson) ?? {};
+  const newValue = safeJson(log.newValueJson) ?? {};
+  const assetTag =
+    getString(newValue.assetTag) ??
+    getString(oldValue.assetTag) ??
+    getString(newValue.assetId) ??
+    getString(oldValue.assetId) ??
+    getString(newValue.serialNumber) ??
+    getString(oldValue.serialNumber) ??
+    log.recordId;
+  const actor = log.actorId
+    ? employeeNameById.get(log.actorId) ?? "Admin"
+    : "System";
+  const oldStatus = getString(oldValue.status);
+  const nextStatus = getString(newValue.status);
+  const oldPurchaseCost = getNumber(oldValue.purchaseCost);
+  const nextPurchaseCost = getNumber(newValue.purchaseCost);
+
+  let type: ActivityType = "verified";
+  let title = `${assetTag} дээр ${log.action} үйлдэл хийгдсэн`;
+
+  if (log.action === "REGISTERED" || log.action === "CREATED") {
+    type = "registered";
+    title = `${assetTag} хөрөнгө бүртгэгдсэн`;
+  } else if (log.action === "ASSIGNED") {
+    type = "assigned";
+    const employeeId = getString(newValue.employeeId);
+    const employeeName = employeeId
+      ? employeeNameById.get(employeeId) ?? employeeId
+      : actor;
+    title = `${assetTag} хөрөнгийг ${employeeName}-д олгосон`;
+  } else if (log.action === "TRANSFERRED") {
+    type = "transferred";
+    const fromEmployeeId = getString(newValue.fromEmployeeId);
+    const toEmployeeId = getString(newValue.toEmployeeId);
+    const fromName = fromEmployeeId
+      ? employeeNameById.get(fromEmployeeId) ?? fromEmployeeId
+      : "өмнөх эзэмшигч";
+    const toName = toEmployeeId
+      ? employeeNameById.get(toEmployeeId) ?? toEmployeeId
+      : "шинэ эзэмшигч";
+    title = `${assetTag} хөрөнгийг ${fromName}-с ${toName} руу шилжүүлсэн`;
+  } else if (log.action === "ASSET_RETURNED" || log.action === "RETURNED") {
+    type = "returned";
+    title = `${assetTag} хөрөнгө буцаагдсан`;
+  } else if (
+    log.action === "ASSET_DELETED" ||
+    log.action === "ASSET_DELETE_REQUESTED"
+  ) {
+    type = "deleted";
+    title =
+      log.action === "ASSET_DELETED"
+        ? `${assetTag} хөрөнгийг устгасан`
+        : `${assetTag} хөрөнгө устгах хүсэлт илгээгдсэн`;
+  } else if (log.action === "ASSET_DELETE_FAILED") {
+    type = "warning";
+    title = `${assetTag} хөрөнгө устгах үед алдаа гарсан`;
+  } else if (oldStatus && nextStatus && oldStatus !== nextStatus) {
+    type = "asset_status_changed";
+    title = `${actor} нь ${assetTag} хөрөнгийн төлөвийг ${oldStatus} -> ${nextStatus} болгож өөрчилсөн`;
+  } else if (
+    nextPurchaseCost != null &&
+    nextPurchaseCost !== oldPurchaseCost
+  ) {
+    type = "asset_price_changed";
+    title = `${actor} нь ${assetTag} хөрөнгийн үнийг ${formatMoney(
+      oldPurchaseCost,
+    )} -> ${formatMoney(nextPurchaseCost)} болгож өөрчилсөн`;
+  } else if (nextStatus) {
+    type = "asset_status_changed";
+    title = `${actor} нь ${assetTag} хөрөнгийн төлөвийг ${nextStatus} болгож өөрчилсөн`;
+  }
+
+  return {
+    id: log.id,
+    title,
+    time: formatDateTime(log.createdAt),
+    ts: log.createdAt,
+    ...pickActivityIcon(type),
+  };
+}
+
 export function RecentActivities() {
-  const { data: assignmentsData, loading } = useQuery(AssignmentsDocument, {});
+  const { data: assignmentsData, loading } = useQuery(AssignmentsDocument);
   const { data: auditData, loading: auditLoading } = useQuery(
     GetAuditLogsDocument,
     {
-      variables: { tableName: "assets" },
+      variables: {},
       fetchPolicy: "network-only",
+      pollInterval: 30000,
     },
   );
   const { data: employeesData } = useQuery(EmployeesDocument, {
@@ -104,135 +213,56 @@ export function RecentActivities() {
 
   const activities = useMemo(() => {
     const employeeNameById = new Map<string, string>();
-    (employeesData?.employees ?? []).forEach((e) => {
+    (employeesData?.employees ?? []).forEach((employee) => {
       const name =
-        [e.firstName, e.lastName].filter(Boolean).join(" ") || e.email || e.id;
-      employeeNameById.set(e.id, name);
+        [employee.firstName, employee.lastName].filter(Boolean).join(" ") ||
+        employee.email ||
+        employee.id;
+      employeeNameById.set(employee.id, name);
     });
 
-    const raw = assignmentsData?.assignments ?? [];
-    const assignments = raw as AssignmentFieldsFragment[];
-
-    const sorted = [...assignments].sort((a, b) => {
-      const timeA = a.returnedAt ?? a.assignedAt;
-      const timeB = b.returnedAt ?? b.assignedAt;
-      return timeB - timeA;
-    });
-
-    const assignmentActivities = sorted.slice(0, 20).map((assignment) => {
-      const employeeName = assignment.employee
-        ? `${assignment.employee.firstName} ${assignment.employee.lastName}`.trim()
-        : "Admin";
-
-      const asset = assignment.asset as
-        | { category?: string }
-        | null
-        | undefined;
-      const assetName = asset?.category ?? "Хөрөнгө";
-
-      const timeStamp = assignment.returnedAt ?? assignment.assignedAt;
-
-      let type: ActivityType = "assigned";
-      if (assignment.returnedAt) type = "returned";
-
-      let title = `${assetName}-г ${employeeName}-д хуваарилсан`;
-      if (type === "returned") {
-        title = `${assetName}-г ${employeeName} буцаан өгсөн`;
-      }
-
-      const time = formatDateTime(timeStamp);
-
-      return {
-        id: assignment.id,
-        title,
-        time,
-        ts: timeStamp,
-        ...pickActivityIcon(type),
-      };
-    });
-
-    type Audit = {
-      id: string;
-      recordId: string;
-      action: string;
-      actorId: string;
-      oldValueJson?: string | null;
-      newValueJson?: string | null;
-      createdAt: number;
-    };
-
-    const safeJson = (value?: string | null) => {
-      if (!value) return null;
-      try {
-        return JSON.parse(value) as any;
-      } catch {
-        return null;
-      }
-    };
-
-    const auditLogs = (auditData?.auditLogs ?? []) as Audit[];
-    const assetAuditActivities = auditLogs
-      .filter((l) => l.action === "ASSET_UPDATED")
-      .map((l) => {
-        const oldV = safeJson(l.oldValueJson) ?? {};
-        const newV = safeJson(l.newValueJson) ?? {};
-        const assetTag = oldV.assetTag ?? oldV.assetId ?? l.recordId;
-        const actor = employeeNameById.get(l.actorId) ?? "Admin";
-
-        const oldStatus = oldV.status;
-        const nextStatus = newV.status;
-        const statusChanged =
-          typeof nextStatus === "string" &&
-          typeof oldStatus === "string" &&
-          nextStatus !== oldStatus;
-
-        const oldPurchaseCost =
-          typeof oldV.purchaseCost === "number" ? oldV.purchaseCost : null;
-        const nextPurchaseCost =
-          typeof newV.purchaseCost === "number" ? newV.purchaseCost : null;
-        const priceChanged =
-          nextPurchaseCost != null && nextPurchaseCost !== oldPurchaseCost;
-
-        let type: ActivityType | null = null;
-        let title = "";
-        if (statusChanged) {
-          type = "asset_status_changed";
-          title = `${actor} нь ${assetTag} хөрөнгийн төлөвийг ${oldStatus} → ${nextStatus} болгож өөрчилсөн`;
-        } else if (priceChanged) {
-          type = "asset_price_changed";
-          title = `${actor} нь ${assetTag} хөрөнгийн үнийг ${oldPurchaseCost ?? 0}₮ → ${nextPurchaseCost}₮ болгож өөрчилсөн`;
-        } else if (typeof nextStatus === "string") {
-          type = "asset_status_changed";
-          title = `${actor} нь ${assetTag} хөрөнгийн төлөвийг ${nextStatus} болгож өөрчилсөн`;
-        } else if (nextPurchaseCost != null) {
-          type = "asset_price_changed";
-          title = `${actor} нь ${assetTag} хөрөнгийн үнийг ${nextPurchaseCost}₮ болгож өөрчилсөн`;
-        }
-
-        if (!type || !title) return null;
+    const assignments =
+      (assignmentsData?.assignments ?? []) as AssignmentFieldsFragment[];
+    const assignmentActivities = [...assignments]
+      .sort((left, right) => {
+        const leftTime = left.returnedAt ?? left.assignedAt;
+        const rightTime = right.returnedAt ?? right.assignedAt;
+        return rightTime - leftTime;
+      })
+      .slice(0, 20)
+      .map((assignment) => {
+        const employeeName = assignment.employee
+          ? `${assignment.employee.firstName} ${assignment.employee.lastName}`.trim()
+          : employeeNameById.get(assignment.employeeId) ?? "Admin";
+        const asset = assignment.asset as
+          | { assetTag?: string; category?: string }
+          | null
+          | undefined;
+        const assetName = asset?.assetTag ?? asset?.category ?? "Хөрөнгө";
+        const timeStamp = assignment.returnedAt ?? assignment.assignedAt;
+        const type: ActivityType = assignment.returnedAt
+          ? "returned"
+          : "assigned";
+        const title = assignment.returnedAt
+          ? `${assetName}-г ${employeeName} буцаан өгсөн`
+          : `${assetName}-г ${employeeName}-д хуваарилсан`;
 
         return {
-          id: l.id,
+          id: assignment.id,
           title,
-          time: formatDateTime(l.createdAt),
-          ts: l.createdAt,
+          time: formatDateTime(timeStamp),
+          ts: timeStamp,
           ...pickActivityIcon(type),
         };
-      })
-      .filter(Boolean) as Array<{
-      id: string;
-      title: string;
-      time: string;
-      ts: number;
-      icon: any;
-      iconColor: string;
-    }>;
+      });
 
-    const combined = [...assetAuditActivities, ...assignmentActivities]
-      .sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0))
+    const auditActivities = ((auditData?.auditLogs ?? []) as AuditLogRow[]).map(
+      (log) => buildAuditActivity(log, employeeNameById),
+    );
+
+    return [...auditActivities, ...assignmentActivities]
+      .sort((left, right) => (right.ts ?? 0) - (left.ts ?? 0))
       .slice(0, 20);
-
-    return combined;
   }, [
     assignmentsData?.assignments,
     auditData?.auditLogs,
@@ -262,7 +292,7 @@ export function RecentActivities() {
               ))
             ) : activities.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                Өгөгдөл алга
+                Үйлдэл бүртгэгдээгүй байна.
               </div>
             ) : (
               activities.map((activity) => {

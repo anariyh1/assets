@@ -10,7 +10,6 @@ import { DashboardContent } from "@/components/dashboard-content";
 import { AssetsContent } from "@/components/assets/assets-content";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AssetFilter } from "@/components/assets/asset-filter";
-import { QRCensusContent } from "@/components/qr/qr-census-content";
 import { ReportContent } from "@/components/reports/report-content";
 
 export function DashboardPageClient() {
@@ -45,7 +44,7 @@ export function DashboardPageClient() {
   };
 
   return (
-    <div className="h-svh overflow-hidden bg-muted/30">
+    <div className="app-shell-background h-svh overflow-hidden text-foreground">
       <SidebarProvider
         className="h-full"
         defaultOpen={true}
@@ -74,14 +73,12 @@ export function DashboardPageClient() {
             {activeTitle === "Хөрөнгө" ? <AssetsContent /> : null}
             {activeTitle === "Эд Хөрөнгө" ? <AssetFilter /> : null}
             {activeTitle === "Тайлан" ? <ReportContent /> : null}
-            {activeTitle === "QR тооллого" ? <QRCensusContent /> : null}
 
             {activeTitle !== "Хянах самбар" &&
             activeTitle !== "Хөрөнгө" &&
             activeTitle !== "Эд Хөрөнгө" &&
             activeTitle !== "Тайлан" &&
-            activeTitle !== "Хөрөнгө хуваарилах" &&
-            activeTitle !== "QR тооллого" ? (
+            activeTitle !== "Хөрөнгө хуваарилах" ? (
               <div />
             ) : null}
           </div>
@@ -90,3 +87,4 @@ export function DashboardPageClient() {
     </div>
   );
 }
+

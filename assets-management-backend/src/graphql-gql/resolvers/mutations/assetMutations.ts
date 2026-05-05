@@ -121,7 +121,7 @@ export const assetMutations = {
     const oldAsset = await getAssetById(args.id);
     const updated = await updateAssetById(args.id, updates as never);
     const actorId = await getActorId(ctx);
-    if (actorId && oldAsset && updated) {
+    if (oldAsset && updated) {
       await writeAuditLog(
         "assets",
         args.id,
@@ -142,42 +142,42 @@ export const assetMutations = {
       !!process.env.ARCHIVE_BUCKET_NAME;
     const actorId = await getActorId(ctx);
     const oldAsset = await getAssetById(args.id);
-    if (actorId) {
+    await writeAuditLog(
+      "assets",
+      args.id,
+      "ASSET_DELETE_REQUESTED",
+      actorId,
+      oldAsset ? { ...oldAsset } : null,
+      {
+        mode: hasArchiveEnv ? "ARCHIVE" : "SOFT_DELETE",
+      },
+    );
+
+    let ok = false;
+    try {
+      ok = hasArchiveEnv
+        ? await deleteAndArchiveAsset(args.id)
+        : await deleteAssetById(args.id);
+
+      if (!ok && hasArchiveEnv) {
+        ok = await deleteAssetById(args.id);
+      }
+    } catch (error: any) {
+      ok = hasArchiveEnv ? await deleteAssetById(args.id) : false;
       await writeAuditLog(
         "assets",
         args.id,
-        "ASSET_DELETE_REQUESTED",
+        "ASSET_DELETE_FAILED",
         actorId,
         oldAsset ? { ...oldAsset } : null,
         {
           mode: hasArchiveEnv ? "ARCHIVE" : "SOFT_DELETE",
+          error: error?.message ? String(error.message) : "unknown_error",
         },
       );
     }
 
-    let ok = false;
-    try {
-      ok = !hasArchiveEnv
-        ? await deleteAssetById(args.id)
-        : await deleteAndArchiveAsset(args.id);
-    } catch (error: any) {
-      ok = false;
-      if (actorId) {
-        await writeAuditLog(
-          "assets",
-          args.id,
-          "ASSET_DELETE_FAILED",
-          actorId,
-          oldAsset ? { ...oldAsset } : null,
-          {
-            mode: hasArchiveEnv ? "ARCHIVE" : "SOFT_DELETE",
-            error: error?.message ? String(error.message) : "unknown_error",
-          },
-        );
-      }
-    }
-
-    if (ok && actorId) {
+    if (ok) {
       await writeAuditLog(
         "assets",
         args.id,

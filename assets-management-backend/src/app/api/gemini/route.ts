@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { NextRequest, NextResponse } from "next/server";
 
 const GEMINI_API_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
@@ -38,7 +38,7 @@ function getGeminiApiKey() {
       return boundKey.trim();
     }
   } catch {
-    // Fall back to local env files when Cloudflare bindings are unavailable.
+    // Local Next.js dev can fall back to .env.local via process.env.
   }
 
   const processKey = process.env.GEMINI_API_KEY?.trim();
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
 
   if (!message) {
     return NextResponse.json(
-      { error: "message hooson baina." },
+      { error: "message talbar zaaval baina." },
       { status: 400 }
     );
   }
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         systemInstruction: {
           parts: [
             {
-              text: "You are AssetHub assistant for an asset management dashboard. Help with assets, assignments, QR, reports, and dashboard usage. Reply in Mongolian by default unless the user writes in another language. When replying in Mongolian, use only Mongolian Cyrillic script. Do not transliterate Mongolian into Latin letters. Do not mix Mongolian and English unless the user explicitly asks for English or a technical term, product name, model name, API name, or code token must stay in English. Keep answers concise and practical.",
+              text: "You are an AI assistant for an asset management system. Help with assets, procurement, assignments, QR, inventory, reporting, and system usage. Reply in Mongolian by default unless the user writes in another language. When replying in Mongolian, use only Mongolian Cyrillic script. Do not transliterate Mongolian into Latin letters. Do not mix Mongolian and English unless the user explicitly asks for English or a technical term, product name, model name, API name, or code token must stay in English. Keep answers concise and practical.",
             },
           ],
         },

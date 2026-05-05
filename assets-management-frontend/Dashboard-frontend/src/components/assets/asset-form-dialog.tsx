@@ -61,6 +61,7 @@ type LocationFromApi = {
 };
 
 type AssetDialogMode = "create" | "edit";
+const LOCAL_ASSETS_KEY = "assethub-local-assets";
 
 type AssetFormDialogProps = {
   open: boolean;
@@ -232,26 +233,46 @@ export function AssetFormDialog({
 
   /** Үндсэн ангиллын сонголт: DB-ээс эсвэл constants fallback (API нэрээр mainCategory илгээнэ) */
   const mainCategoryOptions = useMemo(() => {
-    if (categoriesFromDb.length > 0) {
-      return categoriesFromDb.map((c) => ({ value: c.name, label: c.name }));
-    }
-    return MAIN_CATEGORY_OPTIONS;
+    const options = new Map(
+      MAIN_CATEGORY_OPTIONS.map((item) => [item.label, item]),
+    );
+
+    categoriesFromDb.forEach((category) => {
+      options.set(category.name, { value: category.name, label: category.name });
+    });
+
+    return Array.from(options.values());
   }, [categoriesFromDb]);
 
   /** Үндсэн ангилалд хамаарах дэд ангиллууд: DB-ээс эсвэл constants fallback */
   const subCategoryOptions = useMemo(() => {
-    if (categoriesFromDb.length > 0 && mainCategory.trim()) {
-      const main = categoriesFromDb.find((c) => c.name === mainCategory);
-      const subs = main?.subcategories ?? [];
-      if (subs.length > 0) {
-        return subs.map((s) => ({ key: s.id, label: s.name }));
-      }
-    }
+    const options = new Map<string, { key: string; label: string }>();
     const keys =
       mainCategory && mainCategory in SUB_CATEGORIES_BY_MAIN
         ? SUB_CATEGORIES_BY_MAIN[mainCategory]
         : (Object.keys(CATEGORY_LABELS) as AssetCategory[]);
-    return keys.map((k) => ({ key: k, label: CATEGORY_LABELS[k] }));
+
+    keys.forEach((key) => {
+      options.set(CATEGORY_LABELS[key], { key, label: CATEGORY_LABELS[key] });
+    });
+
+    if (categoriesFromDb.length > 0 && mainCategory.trim()) {
+      const main = categoriesFromDb.find((c) => c.name === mainCategory);
+      const subs = main?.subcategories ?? [];
+      subs.forEach((subcategory) => {
+        options.set(subcategory.name, {
+          key: subcategory.id,
+          label: subcategory.name,
+        });
+      });
+    }
+
+    const uniqueByKey = new Map<string, { key: string; label: string }>();
+    Array.from(options.values()).forEach((option) => {
+      uniqueByKey.set(option.key, option);
+    });
+
+    return Array.from(uniqueByKey.values());
   }, [categoriesFromDb, mainCategory]);
 
   const demoMonitorLabel = useMemo(() => {
@@ -386,6 +407,67 @@ export function AssetFormDialog({
     };
   };
 
+  const saveLocalAssets = (assets: Asset[]) => {
+    try {
+      const existing = JSON.parse(
+        window.localStorage.getItem(LOCAL_ASSETS_KEY) || "[]",
+      ) as Asset[];
+      const byId = new Map(existing.map((asset) => [asset.id, asset]));
+      assets.forEach((asset) => byId.set(asset.id, asset));
+      window.localStorage.setItem(
+        LOCAL_ASSETS_KEY,
+        JSON.stringify(Array.from(byId.values())),
+      );
+      window.dispatchEvent(new Event("storage"));
+    } catch {
+      window.localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(assets));
+      window.dispatchEvent(new Event("storage"));
+    }
+  };
+
+  const mapCreateInputToLocalAsset = (
+    input: {
+      assetTag: string;
+      category: string;
+      mainCategory?: string;
+      serialNumber: string;
+      status: string;
+      purchaseDate?: number;
+      purchaseCost?: number;
+      currentBookValue?: number;
+      locationId?: string;
+      imageUrl?: string;
+      notes?: string;
+    },
+    index: number,
+  ): Asset => {
+    const now = new Date().toISOString();
+
+    return {
+      id: `local-${input.assetTag}-${Date.now()}-${index}`,
+      assetId: input.assetTag,
+      category: input.category as AssetCategory,
+      mainCategory: input.mainCategory,
+      location: input.locationId,
+      serialNumber: input.serialNumber,
+      purchaseCost: input.purchaseCost ?? 0,
+      residualValue: 0,
+      usefulLife: 0,
+      purchaseDate: input.purchaseDate
+        ? new Date(input.purchaseDate).toISOString()
+        : now,
+      currentBookValue: input.currentBookValue ?? input.purchaseCost ?? 0,
+      status: input.status as Asset["status"],
+      imageUrl:
+        input.imageUrl ??
+        process.env.NEXT_PUBLIC_ASSET_FALLBACK_IMAGE_URL ??
+        undefined,
+      notes: input.notes,
+      createdAt: now,
+      updatedAt: now,
+    };
+  };
+
   const resetForm = () => {
     setAssetId("");
     setSubCategory("");
@@ -485,8 +567,9 @@ export function AssetFormDialog({
 
     setIsSaving(true);
     (async () => {
+      let uploadedUrl: string | null = null;
       try {
-        const uploadedUrl = await uploadImageIfNeeded();
+        uploadedUrl = await uploadImageIfNeeded();
 
         if (mode === "edit" && initialAsset) {
           const updateInput = {
@@ -588,6 +671,46 @@ export function AssetFormDialog({
         resetForm();
       } catch (error) {
         console.error("Failed to save asset:", error);
+
+        if (mode === "create") {
+          const localAssets = serialList.map((serial, index) => {
+            const candidateId =
+              serialList.length === 1
+                ? baseId
+                : `${baseId}-${String(index + 1).padStart(2, "0")}`;
+            const uniqueAssetId = getUniqueAssetId(candidateId);
+
+            return mapCreateInputToLocalAsset(
+              {
+                assetTag: uniqueAssetId,
+                category: resolvedAssetCategory,
+                mainCategory: mainCategory || undefined,
+                serialNumber: serial,
+                status: assetStatus || "AVAILABLE",
+                purchaseDate: purchaseTimestamp,
+                purchaseCost,
+                currentBookValue:
+                  assetStatus === "FOR_SALE" ? parsedSalePrice : undefined,
+                locationId: resolvedLocation || undefined,
+                imageUrl:
+                  uploadedUrl ??
+                  (serialList.length > 1 ? fallbackImageUrl : undefined),
+                notes: note.trim() || undefined,
+              },
+              index,
+            );
+          });
+
+          saveLocalAssets(localAssets);
+          onAddAssets(localAssets);
+          onOpenChange(false);
+          resetForm();
+          toast.warning(
+            "Backend холбогдохгүй байгаа тул хөрөнгө browser дээр түр хадгалагдлаа.",
+          );
+          return;
+        }
+
         setImageUploadStatus("error");
         setImageUploadError(
           error instanceof Error ? error.message : "Upload failed",
@@ -683,12 +806,15 @@ export function AssetFormDialog({
 
     const bucketName = process.env.NEXT_PUBLIC_R2_BUCKET_NAME;
     const publicUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL;
+    const isLocalhost =
+      typeof window !== "undefined" && window.location.hostname === "localhost";
     const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL;
-    const presignUrl =
-      process.env.NEXT_PUBLIC_R2_PRESIGN_URL ??
-      (graphqlUrl
-        ? graphqlUrl.replace(/\/api\/graphql$/, "/api/r2/presign")
-        : "/api/r2/presign");
+    const presignUrl = isLocalhost
+      ? "/api/r2/presign"
+      : (process.env.NEXT_PUBLIC_R2_PRESIGN_URL ??
+        (graphqlUrl
+          ? graphqlUrl.replace(/\/api\/graphql$/, "/api/r2/presign")
+          : "/api/r2/presign"));
 
     if (!bucketName || !publicUrl) {
       throw new Error("Missing R2 environment variables.");

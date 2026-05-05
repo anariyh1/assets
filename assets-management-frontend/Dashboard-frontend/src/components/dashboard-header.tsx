@@ -1,8 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BellDot, MapPin, Package, Search, UserIcon } from "lucide-react";
-import { useQuery } from "@apollo/client";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import {
+  BellDot,
+  CheckCheck,
+  Dot,
+  ExternalLink,
+  MapPin,
+  Moon,
+  Package,
+  Search,
+  Sun,
+  UserIcon,
+} from "lucide-react";
+import { useMutation, useQuery } from "@apollo/client";
+import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +25,10 @@ import {
   AssetFieldsFragmentDoc,
   EmployeesDocument,
   GetAssetsDocument,
+  GetDashboardDocument,
+  MarkNotificationAsReadDocument,
+  NotificationFieldsFragmentDoc,
+  UserRole,
 } from "@/gql/graphql";
 import { useFragment } from "@/gql";
 
@@ -75,6 +93,54 @@ function getInitials(value: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
+}
+
+function formatNotificationTime(createdAt: number) {
+  const date = new Date(createdAt);
+  const diff = Date.now() - date.getTime();
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+
+  if (diff < minute) return "саяхан";
+  if (diff < hour) return `${Math.floor(diff / minute)} мин өмнө`;
+  if (diff < day) return `${Math.floor(diff / hour)} цаг өмнө`;
+
+  return date.toLocaleDateString("mn-MN", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function getDashboardRole(role?: string | null): UserRole {
+  const normalized = (role ?? "").toUpperCase();
+  if (normalized === UserRole.Employee) return UserRole.Employee;
+  if (normalized === UserRole.Finance) return UserRole.Finance;
+  if (normalized === UserRole.ItAdmin) return UserRole.ItAdmin;
+  return UserRole.SuperAdmin;
+}
+
+function getNotificationTone(type: string) {
+  const normalized = type.toUpperCase();
+  if (normalized === "URGENT") {
+    return {
+      dot: "bg-red-500",
+      badge: "border-red-200 bg-red-50 text-red-700",
+      label: "Яаралтай",
+    };
+  }
+  if (normalized === "WARNING") {
+    return {
+      dot: "bg-amber-500",
+      badge: "border-amber-200 bg-amber-50 text-amber-700",
+      label: "Анхаарах",
+    };
+  }
+  return {
+    dot: "bg-sky-500",
+    badge: "border-sky-200 bg-sky-50 text-sky-700",
+    label: "Мэдээлэл",
+  };
 }
 
 function normalizeSearchChunk(value: string) {
@@ -191,12 +257,19 @@ function renderHighlightedText(
 }
 
 export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [showAllAssetResults, setShowAllAssetResults] = useState(false);
+  const [themeMounted, setThemeMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const { resolvedTheme, setTheme } = useTheme();
+  const { data: session } = useSession();
   const { data: assetsData } = useQuery(GetAssetsDocument);
   const { data: employeesData } = useQuery(EmployeesDocument);
+  const [markNotificationAsRead] = useMutation(MarkNotificationAsReadDocument);
 
   const assets = useMemo(() => {
     return (assetsData?.assets ?? [])
@@ -205,6 +278,48 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
   }, [assetsData]);
 
   const employees = employeesData?.employees ?? [];
+  const currentEmployee = useMemo(() => {
+    const email = session?.user?.email?.toLowerCase();
+    if (!email) return null;
+    return (
+      employees.find((employee) => employee.email?.toLowerCase() === email) ??
+      null
+    );
+  }, [employees, session?.user?.email]);
+  const dashboardRole = getDashboardRole(currentEmployee?.role);
+  const dashboardEmployeeId = currentEmployee?.id;
+  const {
+    data: dashboardData,
+    loading: notificationsLoading,
+    refetch: refetchDashboard,
+  } = useQuery(GetDashboardDocument, {
+    variables: {
+      role: dashboardRole,
+      employeeId: dashboardEmployeeId,
+    },
+    skip: dashboardRole === UserRole.Employee && !dashboardEmployeeId,
+    pollInterval: 30000,
+  });
+
+  const notifications = useMemo(() => {
+    const rawNotifications = [
+      ...(dashboardData?.dashboard.itView?.notifications ?? []),
+      ...(dashboardData?.dashboard.financeView?.notifications ?? []),
+      ...(dashboardData?.dashboard.employeeView?.notifications ?? []),
+    ]
+      .map((notification) =>
+        useFragment(NotificationFieldsFragmentDoc, notification),
+      )
+      .filter(Boolean);
+    const byId = new Map(rawNotifications.map((item) => [item.id, item]));
+    return Array.from(byId.values()).sort(
+      (left, right) => right.createdAt - left.createdAt,
+    );
+  }, [dashboardData]);
+  const unreadCount = notifications.filter(
+    (notification) => notification.isRead === 0,
+  ).length;
+  const isDarkTheme = resolvedTheme === "dark";
 
   const trimmedQuery = query.trim().toLowerCase();
   const normalizedQuery = normalizeSearchText(trimmedQuery);
@@ -261,6 +376,10 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
   }, [matchedAssets, showAllAssetResults]);
 
   useEffect(() => {
+    setThemeMounted(true);
+  }, []);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         containerRef.current &&
@@ -274,11 +393,56 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        notificationsRef.current &&
+        !notificationsRef.current.contains(event.target as Node)
+      ) {
+        setNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleNotificationClick = async (notification: {
+    id: string;
+    link?: string | null;
+    isRead: number;
+  }) => {
+    if (notification.isRead === 0) {
+      await markNotificationAsRead({
+        variables: { id: notification.id },
+      });
+      await refetchDashboard();
+    }
+
+    if (notification.link) {
+      setNotificationsOpen(false);
+      router.push(notification.link);
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    const unreadNotifications = notifications.filter(
+      (notification) => notification.isRead === 0,
+    );
+
+    await Promise.all(
+      unreadNotifications.map((notification) =>
+        markNotificationAsRead({ variables: { id: notification.id } }),
+      ),
+    );
+    await refetchDashboard();
+  };
+
   const dividerWidth = sidebarOpen ? "0.5px" : "1px";
   const dividerLeft = sidebarOpen ? "calc(240px - 0.5px)" : "calc(72px - 1px)";
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex h-14 pr-7 items-center justify-between border-b bg-white">
+    <header className="fixed inset-x-0 top-0 z-50 flex h-14 pr-7 items-center justify-between border-b border-white/55 bg-white/35 text-foreground backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
       <span
         className="absolute top-0 hidden h-14 bg-sidebar-border/90 transition-[left,width] duration-300 ease-out md:block"
         style={{ left: dividerLeft, width: dividerWidth }}
@@ -292,11 +456,11 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
           }}
         >
           <div className="flex h-14 items-center gap-3 px-6">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
-              <Package className="h-4 w-4 text-gray-900" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted">
+              <Package className="h-4 w-4 text-foreground" />
             </div>
             <span
-              className="overflow-hidden whitespace-nowrap text-sm font-semibold tracking-[0.02em] text-slate-800 transition-all duration-300 ease-out"
+              className="overflow-hidden whitespace-nowrap text-sm font-semibold tracking-[0.02em] text-foreground transition-all duration-300 ease-out"
               style={{
                 maxWidth: sidebarOpen ? "120px" : "0px",
                 opacity: sidebarOpen ? 1 : 0,
@@ -318,7 +482,7 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <Input
               placeholder="Хөрөнгө, ажилтан хайх.."
-              className="h-11 w-full rounded-xl border-slate-300 bg-white pl-11 pr-4 text-sm text-slate-700 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-slate-300"
+              className="h-11 w-full rounded-xl border-input bg-background pl-11 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -518,11 +682,172 @@ export function DashboardHeader({ sidebarOpen }: { sidebarOpen: boolean }) {
       </div>
 
       <div className="flex items-center gap-2 ">
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <BellDot />
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
+          aria-label={isDarkTheme ? "Цайвар theme" : "Харанхуй theme"}
+          title={isDarkTheme ? "Цайвар theme" : "Харанхуй theme"}
+        >
+          {themeMounted && isDarkTheme ? (
+            <Sun className="h-4 w-4" />
+          ) : (
+            <Moon className="h-4 w-4" />
+          )}
         </Button>
-        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full">
-          <UserIcon className="h-4 w-4" />
+        <div ref={notificationsRef} className="relative">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="relative h-8 w-8"
+            onClick={() => setNotificationsOpen((open) => !open)}
+            aria-label="Мэдэгдэл"
+          >
+            <BellDot className="h-4 w-4" />
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold leading-none text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            ) : null}
+          </Button>
+
+          {notificationsOpen ? (
+            <div className="absolute right-0 top-full z-50 mt-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_22px_60px_rgba(15,23,42,0.18)]">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-950">
+                    Мэдэгдэл
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {unreadCount > 0
+                      ? `${unreadCount} уншаагүй мэдэгдэл`
+                      : "Бүх мэдэгдэл уншсан"}
+                  </p>
+                </div>
+                {unreadCount > 0 ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-1.5 rounded-lg px-2 text-xs text-slate-600 hover:bg-slate-100"
+                    onClick={handleMarkAllNotificationsRead}
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                    Бүгд
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="max-h-[420px] overflow-y-auto p-2">
+                {notificationsLoading ? (
+                  <div className="space-y-2 p-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="h-18 animate-pulse rounded-xl bg-slate-100"
+                      />
+                    ))}
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="flex min-h-40 flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 px-5 text-center">
+                    <BellDot className="mb-2 h-7 w-7 text-slate-300" />
+                    <p className="text-sm font-medium text-slate-700">
+                      Мэдэгдэл алга
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Хөрөнгө олгох, шилжүүлэх, буцаах зэрэг үйлдлүүд энд
+                      харагдана.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {notifications.map((notification) => {
+                      const tone = getNotificationTone(notification.type);
+                      const unread = notification.isRead === 0;
+
+                      return (
+                        <button
+                          key={notification.id}
+                          type="button"
+                          className={`group w-full rounded-xl border px-3 py-3 text-left transition hover:border-slate-300 hover:bg-slate-50 ${
+                            unread
+                              ? "border-slate-200 bg-slate-50"
+                              : "border-transparent bg-white"
+                          }`}
+                          onClick={() => void handleNotificationClick(notification)}
+                        >
+                          <div className="flex gap-3">
+                            <span
+                              className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+                                unread ? tone.dot : "bg-slate-300"
+                              }`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <p
+                                  className={`line-clamp-2 text-sm ${
+                                    unread
+                                      ? "font-semibold text-slate-950"
+                                      : "font-medium text-slate-700"
+                                  }`}
+                                >
+                                  {notification.title}
+                                </p>
+                                {notification.link ? (
+                                  <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400 transition group-hover:text-slate-700" />
+                                ) : null}
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                                {notification.message}
+                              </p>
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${tone.badge}`}
+                                >
+                                  {tone.label}
+                                </span>
+                                <span className="inline-flex items-center text-[11px] text-slate-400">
+                                  <Dot className="h-4 w-4" />
+                                  {formatNotificationTime(
+                                    notification.createdAt,
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 cursor-pointer rounded-full"
+          onClick={() => router.push("/profile")}
+          aria-label="Хэрэглэгчийн профайл"
+        >
+          {session?.user?.image ? (
+            <Avatar className="h-7 w-7">
+              <AvatarImage
+                src={session.user.image}
+                alt={session.user.name || "Profile"}
+              />
+              <AvatarFallback>
+                {getInitials(session.user.name || session.user.email || "?")}
+              </AvatarFallback>
+            </Avatar>
+          ) : (
+            <UserIcon className="h-4 w-4" />
+          )}
           <span className="sr-only">Хэрэглэгч</span>
         </Button>
       </div>

@@ -40,7 +40,7 @@
 			"binding": "DB",
 			"database_name": "team_one",
 			"database_id": "f44aa596-d030-4590-8bf8-6f1d7565f594",
-			"remote": true,
+			"remote": false,
 			"migrations_dir": "drizzle",
 		},
 	],
@@ -48,7 +48,7 @@
 		{
 			"binding": "MY_CACHE",
 			"id": "0ce348e0509346639c3b96cc659302c4",
-			"remote": true
+			"remote": false
 		}
 	],
 	/**

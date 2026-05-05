@@ -44,9 +44,11 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ key, url: signedUrl }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
-  } catch (err: any) {
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message : "Failed to generate presigned URL.";
     console.error(err);
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

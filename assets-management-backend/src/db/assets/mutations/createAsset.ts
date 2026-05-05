@@ -39,16 +39,14 @@ export async function createAsset(input: AssetCreate): Promise<Asset> {
   await db.insert(assets).values(row);
 
   const actorId = await getFirstEmployeeId();
-  if (actorId) {
-    await writeAuditLog(
-      "assets",
-      row.id,
-      "REGISTERED",
-      actorId,
-      undefined,
-      { assetTag: row.assetTag, serialNumber: row.serialNumber, status: row.status },
-    );
-  }
+  await writeAuditLog(
+    "assets",
+    row.id,
+    "REGISTERED",
+    actorId,
+    undefined,
+    { assetTag: row.assetTag, serialNumber: row.serialNumber, status: row.status },
+  );
 
   const created = await getAssetById(row.id);
   if (!created) {
@@ -65,4 +63,22 @@ export async function createAssets(inputs: AssetCreate[]) {
   const rows = inputs.map((input) => buildAssetRow(input, now));
 
   await db.insert(assets).values(rows);
+
+  const actorId = await getFirstEmployeeId();
+  await Promise.all(
+    rows.map((row) =>
+      writeAuditLog(
+        "assets",
+        row.id,
+        "REGISTERED",
+        actorId,
+        undefined,
+        {
+          assetTag: row.assetTag,
+          serialNumber: row.serialNumber,
+          status: row.status,
+        },
+      ),
+    ),
+  );
 }

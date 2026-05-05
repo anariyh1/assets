@@ -5,6 +5,13 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  color-scheme: light;
+  --app-shell-background:
+    radial-gradient(circle at 12% 18%, oklch(0.94 0.035 220 / 0.62) 0 18%, transparent 36%),
+    radial-gradient(circle at 76% 12%, oklch(0.95 0.04 150 / 0.48) 0 16%, transparent 34%),
+    radial-gradient(circle at 88% 74%, oklch(0.955 0.035 340 / 0.48) 0 20%, transparent 38%),
+    radial-gradient(circle at 28% 82%, oklch(0.965 0.03 185 / 0.44) 0 18%, transparent 36%),
+    linear-gradient(135deg, oklch(0.995 0.006 225) 0%, oklch(0.985 0.012 195) 48%, oklch(0.992 0.01 330) 100%);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -41,6 +48,13 @@
 }
 
 .dark {
+  color-scheme: dark;
+  --app-shell-background:
+    radial-gradient(circle at 14% 18%, oklch(0.28 0.055 230 / 0.42) 0 18%, transparent 36%),
+    radial-gradient(circle at 78% 14%, oklch(0.3 0.048 155 / 0.34) 0 16%, transparent 34%),
+    radial-gradient(circle at 88% 76%, oklch(0.31 0.052 330 / 0.34) 0 20%, transparent 38%),
+    radial-gradient(circle at 30% 84%, oklch(0.28 0.04 190 / 0.32) 0 18%, transparent 36%),
+    linear-gradient(135deg, oklch(0.16 0.014 245) 0%, oklch(0.135 0.012 235) 52%, oklch(0.155 0.016 285) 100%);
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
@@ -125,6 +139,10 @@
   }
 }
 
+.app-shell-background {
+  background: var(--app-shell-background);
+}
+
 .date-input-right {
   position: relative;
 }
@@ -133,4 +151,55 @@
   position: absolute;
   right: 12px;
   opacity: 0.7;
+}
+
+.dark [class~="bg-white"],
+.dark [class~="bg-[#fafafa]"] {
+  background-color: var(--card);
+}
+
+.dark [class~="bg-white/95"],
+.dark [class~="bg-white/90"],
+.dark [class~="bg-white/70"],
+.dark [class~="bg-[#f3f3f3]"],
+.dark [class~="bg-slate-50"],
+.dark [class~="bg-slate-50/70"],
+.dark [class~="from-slate-50"] {
+  background-color: var(--muted);
+}
+
+.dark [class~="hover:bg-white"]:hover,
+.dark [class~="hover:bg-slate-50"]:hover,
+.dark [class~="hover:bg-slate-100"]:hover,
+.dark [class~="hover:bg-gray-50"]:hover {
+  background-color: var(--accent);
+}
+
+.dark [class~="border-slate-100"],
+.dark [class~="border-slate-200"],
+.dark [class~="border-slate-300"],
+.dark [class~="border-[#efefef]"],
+.dark [class~="border-[#e5e7eb]"] {
+  border-color: var(--border);
+}
+
+.dark [class~="text-black"],
+.dark [class~="text-slate-950"],
+.dark [class~="text-slate-900"],
+.dark [class~="text-gray-900"],
+.dark [class~="text-[#111111]"] {
+  color: var(--foreground);
+}
+
+.dark [class~="text-slate-800"],
+.dark [class~="text-slate-700"],
+.dark [class~="text-[#0f172a]"] {
+  color: color-mix(in oklch, var(--foreground) 88%, var(--muted-foreground));
+}
+
+.dark [class~="text-slate-600"],
+.dark [class~="text-slate-500"],
+.dark [class~="text-slate-400"],
+.dark [class~="text-[#6b6b6b]"] {
+  color: var(--muted-foreground);
 }

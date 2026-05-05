@@ -2,6 +2,7 @@
 
 import type { Asset } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 import { Check, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +43,16 @@ export type AssignAssetDialogProps = {
   employeeNameById: Map<string, string>;
   assignEmployeeId: string;
   onAssignEmployeeIdChange: (value: string) => void;
+  conditionAtAssign?: string;
+  onConditionAtAssignChange?: (value: string) => void;
+  accessories?: string;
+  onAccessoriesChange?: (value: string) => void;
+  assignedValue?: string;
+  onAssignedValueChange?: (value: string) => void;
+  paymentPlanMonths?: string;
+  onPaymentPlanMonthsChange?: (value: string) => void;
+  interestRate?: string;
+  onInterestRateChange?: (value: string) => void;
   submitting: boolean;
   onSubmit: () => Promise<void>;
 };
@@ -47,6 +65,16 @@ export function AssignAssetDialog({
   employeeNameById,
   assignEmployeeId,
   onAssignEmployeeIdChange,
+  conditionAtAssign = "GOOD",
+  onConditionAtAssignChange = () => {},
+  accessories = "",
+  onAccessoriesChange = () => {},
+  assignedValue = "",
+  onAssignedValueChange = () => {},
+  paymentPlanMonths = "",
+  onPaymentPlanMonthsChange = () => {},
+  interestRate = "",
+  onInterestRateChange = () => {},
   submitting,
   onSubmit,
 }: AssignAssetDialogProps) {
@@ -154,6 +182,74 @@ export function AssignAssetDialog({
                 </Command>
               </PopoverContent>
             </Popover>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                Хүлээлгэн өгөх үеийн төлөв
+              </p>
+              <Select
+                value={conditionAtAssign}
+                onValueChange={onConditionAtAssignChange}
+              >
+                <SelectTrigger className="h-11 w-full rounded-md border-gray-200">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GOOD">Сайн</SelectItem>
+                  <SelectItem value="FAIR">Дунд</SelectItem>
+                  <SelectItem value="DAMAGED">Эвдрэлтэй</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">
+                Дагалдах хэрэгсэл
+              </p>
+              <Input
+                value={accessories}
+                onChange={(event) => onAccessoriesChange(event.target.value)}
+                placeholder="Цэнэглэгч, mouse..."
+                className="h-11 rounded-md border-gray-200"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Олгох үнэ</p>
+              <Input
+                inputMode="numeric"
+                value={assignedValue}
+                onChange={(event) => onAssignedValueChange(event.target.value)}
+                placeholder="0"
+                className="h-11 rounded-md border-gray-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Сар</p>
+              <Input
+                inputMode="numeric"
+                value={paymentPlanMonths}
+                onChange={(event) =>
+                  onPaymentPlanMonthsChange(event.target.value)
+                }
+                placeholder="0"
+                className="h-11 rounded-md border-gray-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Хүү %</p>
+              <Input
+                inputMode="decimal"
+                value={interestRate}
+                onChange={(event) => onInterestRateChange(event.target.value)}
+                placeholder="0"
+                className="h-11 rounded-md border-gray-200"
+              />
+            </div>
           </div>
 
           {selectedAssetsList.length > 0 && (

@@ -528,11 +528,11 @@ export function ReportContent() {
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-[#f8fafc] p-6">
+    <div className="flex-1 overflow-auto bg-transparent p-6">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-2">
-            <h1 className="text-[25px] font-bold tracking-[-0.03em] text-[#111827]">
+            <h1 className="text-[25px] font-bold tracking-[-0.03em] text-foreground">
               Тайлан
             </h1>
           </div>
@@ -542,7 +542,7 @@ export function ReportContent() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="outline"
-                  className="h-11 gap-2 rounded-xl border-[#cfd8e3] bg-white px-5 text-[15px] font-medium text-[#111827] hover:bg-[#f8fafc]"
+                  className="h-11 gap-2 rounded-xl border-white/60 bg-white/45 px-5 text-[15px] font-medium text-foreground backdrop-blur-md hover:bg-white/65 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
                 >
                   <FileSpreadsheet className="h-4 w-4" />
                   Экспортлох
@@ -566,7 +566,7 @@ export function ReportContent() {
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-2xl border border-[#d9e4ee] bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)]">
+        <div className="overflow-hidden rounded-2xl border border-white/60 bg-white/38 shadow-[0_8px_30px_rgba(15,23,42,0.04)] backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
           <div
             className="rounded-md font-inter h-full overflow-auto"
             onClick={() => setOpenFilter(null)}

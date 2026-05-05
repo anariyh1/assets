@@ -1,66 +1,152 @@
-# OpenNext Starter
+# Assets Management Backend
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Энэ хавтас нь төслийн backend хэсэг бөгөөд дараах үндсэн боломжуудтай:
 
-## Getting Started
+- GraphQL API
+- Gemini API route
+- R2 presign upload route
+- D1 / Drizzle-тэй холбоотой өгөгдлийн логик
 
-Read the documentation at https://opennext.js.org/cloudflare.
+## Ажиллуулахын өмнө
 
-## Develop
+Шаардлагатай зүйлс:
 
-Run the Next.js development server:
+- `Node.js`
+- `npm`
+- `.env.local` файл
 
-```bash
+## Dependency суулгах
+
+```powershell
+cd C:\Projects\assets\assets-management-backend
+npm install
+```
+
+## Environment тохируулах
+
+`assets-management-backend\.env.local` файлд хамгийн багадаа:
+
+```env
+GEMINI_API_KEY=your_gemini_key
+```
+
+Хэрэв дараах боломжуудыг ашиглаж байвал нэмэлт env хэрэгтэй:
+
+- R2 upload
+- email
+- purchase request approval
+- archive bucket
+
+Жишээ нь repo дотор ашиглагдаж байгаа env-үүд:
+
+- `GEMINI_API_KEY`
+- `R2_S3_API`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `ARCHIVE_BUCKET_NAME`
+- `APP_BASE_URL`
+- `APPROVER_EMAIL`
+
+## Local development
+
+```powershell
 npm run dev
-# or similar package manager command
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Ердийн үед:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
-
-```bash
-npm run preview
-# or similar package manager command
+```text
+http://localhost:3000
 ```
+
+хаяг дээр асна.
+
+## Гол route-ууд
+
+- GraphQL: `http://localhost:3000/api/graphql`
+- Gemini: `http://localhost:3000/api/gemini`
+- R2 presign: `http://localhost:3000/api/r2/presign`
+
+## Gemini API ашиглах
+
+`POST /api/gemini`
+
+Жишээ body:
+
+```json
+{
+  "message": "Сайн байна уу?",
+  "history": [
+    { "role": "user", "content": "Өмнөх асуулт" },
+    { "role": "assistant", "content": "Өмнөх хариулт" }
+  ]
+}
+```
+
+Онцлог:
+
+- `Gemini 2.5 Flash` ашиглана
+- Монголоор хариулахдаа кирилл ашиглахаар тохируулсан
+- key нь зөвхөн server side дээр ашиглагдана
+
+## Ашигтай командууд
+
+```powershell
+npm run dev
+npm run build
+npm run lint
+npx tsc --noEmit
+```
+
+Database-тэй холбоотой:
+
+```powershell
+npm run db:pull
+npm run db:push
+npm run db:studio
+```
+
+Codegen:
+
+```powershell
+npm run graphql:codegen
+npm run codegen
+```
+
+## Түгээмэл асуудал
+
+### `spawn EPERM`
+
+Ихэвчлэн sandbox, permission, эсвэл өөр process-оос шалтгаалдаг.
+
+### `Another next dev server is already running`
+
+Өмнө нь ассан `next dev` process үлдсэн байна.
+
+Шийдэл:
+
+```powershell
+taskkill /PID <PID> /F
+```
+
+### `API Key not found`
+
+- `GEMINI_API_KEY` буруу
+- `.env.local` ачаалагдаагүй
+- Cloudflare binding болон local env зөрсөн
+
+### Cloudflare local dev асуудал
+
+Хэрэв `wrangler` login эсвэл binding-с шалтгаалсан асуудал гарвал эхлээд энгийн `npm run dev`-ээр шалгана.
 
 ## Deploy
 
-Deploy the application to Cloudflare:
-
-```bash
+```powershell
 npm run deploy
-# or similar package manager command
 ```
 
-### Internal Server Error after deploy
+Preview:
 
-1. **Health check** — Worker ажиллаж байгаа эсэхийг шалгах:
-   - `GET https://<your-worker>.workers.dev/api/health`
-   - 200 + `{"ok":true,...}` ирвэл Worker OK; 500 бол бусад алдаа.
-
-2. **D1 remote** — Ихэвчлэн D1 хүснэгт байхгүй эсвэл migration ажиллаагүй:
-   - Remote D1 дээр schema байрлуулах: `npx wrangler d1 migrations apply team_one --remote`
-   - Эсвэл Drizzle-аар push хийсэн бол Cloudflare D1-д хүснэгтүүд (migrations эсвэл push) remote дээр хийгдсэн эсэхийг шалгана.
-
-3. **Лог (500-ийн шалтгаан олох)** — Яг ямар алдаа гарсныг харах:
-   - Терминал 1: `cd assets-management-backend && npx wrangler tail`
-   - Терминал 2 эсвэл браузер: `https://my-next-app....workers.dev/api/health` дуудна
-   - Терминал 1-д гарсан улаан текст (exception message, stack) — энэ нь 500-ийн шалтгаан.
-
-4. **Локалд ажиллуулж шалгах** — Deploy-оос өмнө Worker-ийг локалд ажиллуулах:
-   - `npm run preview` → дараа нь `http://localhost:8787/api/health` нээх
-   - Энд ч 500 гарвал алдаа нь кодын/build талдаа; 200 бол deploy орчин (binding, env) талдаа.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```powershell
+npm run preview
+```

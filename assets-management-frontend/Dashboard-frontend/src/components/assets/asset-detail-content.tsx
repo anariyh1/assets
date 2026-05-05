@@ -48,6 +48,9 @@ import {
 } from "lucide-react";
 import { CATEGORY_LABELS, SUB_CATEGORIES_BY_MAIN } from "./constants";
 import { cn } from "@/lib/utils";
+import type { Asset as UiAsset } from "@/lib/types";
+import { AssetTransferDialog } from "./asset-transfer-dialog";
+import { AssignAssetDialog } from "./filter/components/AssignAssetDialog";
 
 const STATUS_LABELS: Record<string, string> = {
   ASSIGNED: "Эзэмшигчтэй",
@@ -132,6 +135,13 @@ function formatNumberInput(value: string) {
 function parseNumberInput(value: string) {
   const digits = value.replace(/\D/g, "");
   return digits ? Number(digits) : 0;
+}
+
+function parseOptionalNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed.replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function getInitials(value: string) {
@@ -327,6 +337,11 @@ export function AssetDetailContent({
   const [showTransferDialog, setShowTransferDialog] = useState(false);
   const [assignEmployeeId, setAssignEmployeeId] = useState("");
   const [transferToEmployeeId, setTransferToEmployeeId] = useState("");
+  const [assignCondition, setAssignCondition] = useState("GOOD");
+  const [assignAccessories, setAssignAccessories] = useState("");
+  const [assignValue, setAssignValue] = useState("");
+  const [assignMonths, setAssignMonths] = useState("");
+  const [assignInterest, setAssignInterest] = useState("");
   const [confirmStatus, setConfirmStatus] = useState("AVAILABLE");
   const [confirmLocationId, setConfirmLocationId] = useState("");
   const [confirmSendTo, setConfirmSendTo] = useState<"HR" | "IT" | "Agniruu">(
@@ -372,6 +387,9 @@ export function AssetDetailContent({
         employee.id,
     }));
   }, [employeesData]);
+  const employeeNameById = useMemo(() => {
+    return new Map(employeeOptions.map((employee) => [employee.id, employee.name]));
+  }, [employeeOptions]);
 
   const mainCategoryOptions = useMemo(
     () => Object.keys(SUB_CATEGORIES_BY_MAIN),
@@ -635,12 +653,21 @@ export function AssetDetailContent({
         variables: {
           assetId,
           employeeId: assignEmployeeId,
-          conditionAtAssign: "GOOD",
+          conditionAtAssign: assignCondition,
+          accessoriesJson: assignAccessories.trim() || undefined,
+          assignedValue: parseOptionalNumber(assignValue),
+          paymentPlanMonths: parseOptionalNumber(assignMonths),
+          interestRate: parseOptionalNumber(assignInterest),
         },
       });
       toast.success("Хөрөнгө амжилттай олголоо.");
       setShowAssignDialog(false);
       setAssignEmployeeId("");
+      setAssignCondition("GOOD");
+      setAssignAccessories("");
+      setAssignValue("");
+      setAssignMonths("");
+      setAssignInterest("");
       await refetch();
       onClose?.();
     } catch (e) {
@@ -688,6 +715,27 @@ export function AssetDetailContent({
   const resolvedStatus = optimisticStatus ?? asset.status ?? "";
   const ownerName = asset.assignedTo?.trim() || "Admin";
   const ownerInitials = getInitials(ownerName);
+  const detailAsset = {
+    id: asset.id,
+    assetId: asset.assetTag,
+    category: asset.category,
+    mainCategory: mainCategoryLabel,
+    location: asset.locationPath ?? "",
+    serialNumber: asset.serialNumber ?? "",
+    purchaseCost: asset.purchaseCost ?? 0,
+    residualValue: 0,
+    usefulLife: 0,
+    purchaseDate: "",
+    currentBookValue: asset.currentBookValue ?? asset.purchaseCost ?? 0,
+    status: asset.status,
+    assignedEmployeeId: asset.assignedTo ?? undefined,
+    assignedEmployeeName: asset.assignedTo
+      ? employeeNameById.get(asset.assignedTo) || asset.assignedTo
+      : undefined,
+    createdAt: String(asset.createdAt),
+    updatedAt: String(asset.updatedAt),
+  } as UiAsset;
+  const detailSelectedIds = new Set([asset.id]);
 
   return (
     <div
@@ -1426,7 +1474,53 @@ export function AssetDetailContent({
         ) : null}
       </Tabs>
 
-      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+      <AssignAssetDialog
+        open={showAssignDialog}
+        onOpenChange={setShowAssignDialog}
+        assets={[detailAsset]}
+        selectedIds={detailSelectedIds}
+        employeeNameById={employeeNameById}
+        assignEmployeeId={assignEmployeeId}
+        onAssignEmployeeIdChange={setAssignEmployeeId}
+        conditionAtAssign={assignCondition}
+        onConditionAtAssignChange={setAssignCondition}
+        accessories={assignAccessories}
+        onAccessoriesChange={setAssignAccessories}
+        assignedValue={assignValue}
+        onAssignedValueChange={setAssignValue}
+        paymentPlanMonths={assignMonths}
+        onPaymentPlanMonthsChange={setAssignMonths}
+        interestRate={assignInterest}
+        onInterestRateChange={setAssignInterest}
+        submitting={assigning}
+        onSubmit={handleAssignConfirm}
+      />
+
+      <AssetTransferDialog
+        open={showTransferDialog}
+        onOpenChange={setShowTransferDialog}
+        selectedAssets={[
+          {
+            id: asset.id,
+            assetTag: asset.assetTag,
+            serialNumber: asset.serialNumber,
+            category: asset.category,
+            location: asset.locationPath ?? "",
+            assignedEmployeeId: asset.assignedTo ?? undefined,
+            assignedEmployeeName: asset.assignedTo
+              ? employeeNameById.get(asset.assignedTo) || asset.assignedTo
+              : undefined,
+            currentBookValue: asset.currentBookValue ?? undefined,
+            purchaseCost: asset.purchaseCost ?? undefined,
+          },
+        ]}
+        onSuccess={() => {
+          void refetch();
+          onClose?.();
+        }}
+      />
+
+      <Dialog open={false} onOpenChange={setShowAssignDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Хөрөнгө олгох</DialogTitle>
@@ -1465,7 +1559,7 @@ export function AssetDetailContent({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+      <Dialog open={false} onOpenChange={setShowTransferDialog}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Хөрөнгө шилжүүлэх</DialogTitle>

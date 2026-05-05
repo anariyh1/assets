@@ -237,6 +237,7 @@ input EmployeeCreateInput {
   firstNameEng: String!
   lastNameEng: String!
   email: String!
+  role: String
   imageUrl: String
   signUrl: String
   hireDate: Float!
@@ -262,6 +263,7 @@ input EmployeeUpdateInput {
   firstNameEng: String
   lastNameEng: String
   email: String
+  role: String
   imageUrl: String
   signUrl: String
   hireDate: Float

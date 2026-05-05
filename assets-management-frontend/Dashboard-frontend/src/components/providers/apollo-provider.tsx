@@ -5,12 +5,12 @@ import { useMemo } from "react";
 import {
   ApolloClient,
   ApolloProvider,
+  type DefaultOptions,
   HttpLink,
   InMemoryCache,
 } from "@apollo/client";
 
-const graphqlEndpoint =
-  process.env.NEXT_PUBLIC_GRAPHQL_URL ?? "http://localhost:4000/api/graphql";
+const graphqlEndpoint = "/api/graphql";
 
 const cache = new InMemoryCache({
   typePolicies: {
@@ -42,6 +42,18 @@ const cache = new InMemoryCache({
   },
 });
 
+const defaultOptions: DefaultOptions = {
+  watchQuery: {
+    errorPolicy: "all",
+  },
+  query: {
+    errorPolicy: "all",
+  },
+  mutate: {
+    errorPolicy: "all",
+  },
+};
+
 export function ApolloProviderWrapper({
   children,
 }: {
@@ -51,6 +63,7 @@ export function ApolloProviderWrapper({
     return new ApolloClient({
       link: new HttpLink({ uri: graphqlEndpoint }),
       cache,
+      defaultOptions,
     });
   }, []);
 

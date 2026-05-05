@@ -88,7 +88,7 @@ export async function ensureCategoryId(
     })
     .onConflictDoNothing();
 
-  let created = await db
+  const created = await db
     .select({ id: categories.id })
     .from(categories)
     .where(

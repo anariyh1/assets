@@ -3,7 +3,6 @@
 import {
   LayoutDashboard,
   Package,
-  QrCode,
   FileText,
 } from "lucide-react";
 
@@ -33,19 +32,6 @@ const menuItems = [
     title: "Эд Хөрөнгө",
     icon: Package,
   },
-  // {
-  //   title: "Хөрөнгө хуваарилах",
-  //   icon: UserCheck,
-  // },
-  // {
-  //   title: "Хөрөнгө шилжүүлэх",
-  //   icon: ArrowLeftRight,
-  // },
-  {
-    title: "QR тооллого",
-    icon: QrCode,
-  },
-
   {
     title: "Тайлан",
     icon: FileText,
@@ -67,15 +53,15 @@ export function AppSidebar({
     <Sidebar
       collapsible="icon"
       className={cn(
-        "border-r border-sidebar-border bg-white",
+        "border-r border-white/55 bg-white/35 text-sidebar-foreground backdrop-blur-xl dark:border-white/10 dark:bg-white/5",
         sidebarClassName,
       )}
     >
-      <SidebarContent className="bg-white overflow-visible group-data-[collapsible=icon]:overflow-visible">
+      <SidebarContent className="bg-transparent overflow-visible group-data-[collapsible=icon]:overflow-visible">
         <div className="relative h-9 w-full px-2">
           <SidebarTrigger className="absolute right-4 top-1/2 z-10 h-9 w-9 -translate-y-1/2 bg-transparent text-foreground hover:bg-muted/80 active:-translate-y-1/2" />
         </div>
-        <SidebarGroup className="bg-white p-0">
+        <SidebarGroup className="bg-transparent p-0">
           <SidebarGroupContent>
             <SidebarMenu className="overflow-visible">
               {menuItems.map((item) => (
@@ -86,7 +72,7 @@ export function AppSidebar({
                   <SidebarMenuButton
                     isActive={activeTitle === item.title}
                     className={cn(
-                      "group/tooltip relative overflow-visible!",
+                      "group/tooltip relative overflow-visible! text-foreground hover:bg-white/45 hover:text-foreground data-active:bg-white/60 data-active:text-foreground data-active:shadow-sm dark:hover:bg-white/10 dark:data-active:bg-white/15",
                       state === "expanded"
                         ? "justify-start px-3"
                         : "mx-auto h-10 w-10 justify-center px-0",
@@ -115,3 +101,4 @@ export function AppSidebar({
     </Sidebar>
   );
 }
+

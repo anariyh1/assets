@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@apollo/client";
 import {
   GetAssetsDocument,
@@ -8,7 +8,10 @@ import {
 } from "@/gql/graphql";
 import type { Asset } from "@/lib/types";
 
+const LOCAL_ASSETS_KEY = "assethub-local-assets";
+
 export function useAssetsData(statusFilter: string) {
+  const [localAssets, setLocalAssets] = useState<Asset[]>([]);
   const { data, loading, refetch } = useQuery(GetAssetsDocument, {
     variables: {
       office: undefined,
@@ -20,6 +23,50 @@ export function useAssetsData(statusFilter: string) {
   const { data: categoriesData } = useQuery(CategoriesDocument);
   const { data: employeesData } = useQuery(EmployeesDocument);
   const { data: locationsData } = useQuery(GetLocationsDocument);
+
+  useEffect(() => {
+    const readLocalAssets = () => {
+      try {
+        setLocalAssets(
+          JSON.parse(window.localStorage.getItem(LOCAL_ASSETS_KEY) || "[]"),
+        );
+      } catch {
+        setLocalAssets([]);
+      }
+    };
+
+    readLocalAssets();
+    window.addEventListener("storage", readLocalAssets);
+    return () => window.removeEventListener("storage", readLocalAssets);
+  }, []);
+
+  const removeLocalAssetIds = useCallback((ids: Iterable<string>) => {
+    if (typeof window === "undefined") return new Set<string>();
+
+    const targetIds = new Set(ids);
+    if (targetIds.size === 0) return new Set<string>();
+
+    try {
+      const existing = JSON.parse(
+        window.localStorage.getItem(LOCAL_ASSETS_KEY) || "[]",
+      ) as Asset[];
+      const removedIds = new Set(
+        existing
+          .filter((asset) => targetIds.has(asset.id))
+          .map((asset) => asset.id),
+      );
+
+      if (removedIds.size === 0) return removedIds;
+
+      const nextAssets = existing.filter((asset) => !removedIds.has(asset.id));
+      window.localStorage.setItem(LOCAL_ASSETS_KEY, JSON.stringify(nextAssets));
+      setLocalAssets(nextAssets);
+      window.dispatchEvent(new Event("storage"));
+      return removedIds;
+    } catch {
+      return new Set<string>();
+    }
+  }, []);
 
   const employeeNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -82,9 +129,9 @@ export function useAssetsData(statusFilter: string) {
   }, [locationsData?.locations]);
 
   const assets: Asset[] = useMemo(() => {
-    if (!data?.assets) return [];
+    const remoteAssets = data?.assets ?? [];
     const mapped = (
-      data.assets as Array<{
+      remoteAssets as Array<{
         id: string;
         assetTag: string;
         category: string;
@@ -154,8 +201,13 @@ export function useAssetsData(statusFilter: string) {
       };
     });
 
+    const byId = new Map<string, Asset>(
+      mapped.map((asset) => [asset.id, asset as Asset]),
+    );
+    localAssets.forEach((asset) => byId.set(asset.id, asset));
+
     // Sort by most recently updated asset first (not just createdAt).
-    return mapped.sort((a, b) => {
+    return Array.from(byId.values()).sort((a, b) => {
       const aUpdated = new Date(a.updatedAt).getTime();
       const bUpdated = new Date(b.updatedAt).getTime();
       // Fallback to createdAt if updatedAt is missing/unparseable.
@@ -165,7 +217,13 @@ export function useAssetsData(statusFilter: string) {
       // Stable-ish tie-breaker: newer createdAt first.
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [data?.assets, mainCategoryBySubName, employeeNameById, locationPathById]);
+  }, [
+    data?.assets,
+    mainCategoryBySubName,
+    employeeNameById,
+    locationPathById,
+    localAssets,
+  ]);
 
   const visibleAssets = useMemo(() => {
     if (!statusFilter || statusFilter === "all") return assets;
@@ -181,6 +239,7 @@ export function useAssetsData(statusFilter: string) {
     visibleAssets,
     loading,
     refetch,
+    removeLocalAssetIds,
     employeeNameById,
     employeeStatusById,
   };

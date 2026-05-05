@@ -2,6 +2,9 @@ const DEFAULT_DEPLOYED_APP_URL =
   "https://dashboard-frontend.tsetsegulziiocherdene.workers.dev";
 
 function normalizeBaseUrl(value?: string | null) {
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return window.location.origin;
+  }
   if (!value) return DEFAULT_DEPLOYED_APP_URL;
   return value.replace(/\/+$/, "");
 }
